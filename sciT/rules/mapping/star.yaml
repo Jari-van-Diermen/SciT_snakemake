@@ -1,0 +1,5 @@
+name: rna-seq-star
+channels:
+  - conda-forge
+dependencies:
+  - star=2.7.11b

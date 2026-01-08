@@ -1,0 +1,8 @@
+[console_scripts]
+sciT-tagger = "scit.sciT_tagger:run"
+transcriptomebam-to-loom = "scit.transcriptome_bam_to_loom:run"
+sciT-qc = "scit.qc:run"
+sciT-prepare-hybrid-vcf-for-STAR = "scit.prepare_hybrid_vcf_for_STAR:run"
+sciT-split-bam-by-allele = "scit.split_bam_by_allele:run"
+sciT-to-scmo-read-recoder = "scit.sciT_read_recoder:run"
+sciT-cell-filter = "scit.cell_filter:run"

@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: sciTtools
+Version: 1
+Summary: Transcriptomic sequencing tools
+Keywords: transcriptome,single cell,analysis
+Classifier: Programming Language :: Python
+Requires-Python: >=3.11
+Description-Content-Type: text/x-rst
+Requires-Dist: pysam
+Requires-Dist: singlecellmultiomics
+Requires-Dist: loompy
+Requires-Dist: seaborn
+Requires-Dist: numpy<2.0
+Requires-Dist: anndata
+Requires-Dist: plotext
+Requires-Dist: logomaker

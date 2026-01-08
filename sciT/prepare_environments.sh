@@ -1,0 +1,1 @@
+snakemake -j 1 --use-conda --conda-prefix environments --conda-create-envs-only

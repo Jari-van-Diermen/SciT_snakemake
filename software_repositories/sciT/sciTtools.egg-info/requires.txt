@@ -1,0 +1,8 @@
+pysam
+singlecellmultiomics
+loompy
+seaborn
+numpy<2.0
+anndata
+plotext
+logomaker

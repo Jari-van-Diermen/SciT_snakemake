@@ -1,0 +1,429 @@
+from singlecellmultiomics.libraryDetection.sequencingLibraryListing import SequencingLibraryLister
+from glob import glob
+import collections
+import os
+from singlecellmultiomics.utils import get_contig_list_from_fasta
+import yaml
+from hashlib import md5
+import sys
+from snakemake.io import Namedlist
+
+report: "results/workflow.rst"
+configfile: "config.yaml"
+
+try:
+    sciT_to_scmo_read_recoder_version = subprocess.check_output("sciT-to-scmo-read-recoder -v", shell=True)
+except subprocess.CalledProcessError:
+    raise ValueError('sciT-tagger seems not to be installed yet, check the manual section "Install sciT packages", and make sure the environment is activated')
+
+assert 'libraries' in config, 'The configuration file (config.yaml) must contain a libraries section'
+libraries = list(config['libraries'].keys())
+def write_meta_file(configuration_dict, path: str, multiomes_path:str, meta_data_column_order: List[str]):
+    # Make sure output directory exists
+    out_dir = os.path.dirname(path)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir,exist_ok=True)
+
+    # Test if the file already exists and is the same as what we would write
+    yaml_string=yaml.dump(configuration_dict, sort_keys=False)
+    new_hash = md5(yaml_string.encode('utf8')).hexdigest()
+    if os.path.exists(path):
+        with open(path,'r') as i:
+            existing_hash = md5(''.join(i.readlines()).encode('utf8')).hexdigest()
+    else:
+        existing_hash=None
+
+    # Write the file if it does not exist or is different
+    if  existing_hash is None or existing_hash!=new_hash:
+        with open(path,'w') as o:
+            o.write(yaml_string)
+        if 'multiomes' in configuration_dict:
+            with open(multiomes_path,'w') as o:
+                o.write(yaml.dump(configuration_dict['multiomes']))
+        else:
+            with open(multiomes_path,'w') as o:
+                o.write(yaml.dump([]))
+
+# Determine all meta-data columns, and order
+# This needs to be super well defined because the Loom files need to have the exact same number of attributes in the same order (the OBS table of a loom file)
+meta_data_columns = set()
+for lib,libdata in config['libraries'].items():
+    if 'library-meta' in libdata:
+        for attribute, value in libdata['library-meta'].items():
+            meta_data_columns.add(attribute)
+
+
+meta_data_column_order = sorted(list(meta_data_columns))
+print('Meta column order:', meta_data_column_order, file=sys.stderr)
+
+for lib,libdata in config['libraries'].items():
+    write_meta_file(libdata,
+                    f'results/libraries/{lib}/meta.yaml',
+                    f'results/libraries/{lib}/multiomes.yaml',
+                    meta_data_column_order=meta_data_column_order
+                    )
+
+# Check if there is a sciT section bin_sizes are in the right format:
+assert 'sciT' in config, 'sciT section not found in config'
+
+# Set option for allele specific mode
+allele_specific_mode =  'hybrid' in config['reference']
+
+def get_targets():
+    library_dict = dict()
+    target_list = ['results/QC/qc_status_per_sample.csv']
+    # Add transcriptome single end:
+    for library, library_info in config['libraries'].items():
+        library_dict[library] = {}
+
+        if library_info.get('type','') == 'sciT':
+            target_list+= [f"results/libraries/{library}/trimmed.RNA.R1_screen.txt"]
+            #target_list+= [f"results/libraries/{library}/trimmed.RNA.R2_screen.txt"]
+
+        if library_info.get('type','') == 'sciT':
+            target_list.append(f'results/libraries/{library}/RNA_SE_Aligned.sortedByCoord.out.bam')
+            target_list.append(f'results/libraries/{library}/RNA_SE_Aligned.sortedByCoord.out.bw')
+            if allele_specific_mode:
+                target_list.append(f'results/libraries/{library}/transcriptome_se_alleleA.bw') # Create allele specific bw files
+                target_list.append(f'results/libraries/{library}/transcriptome_se_alleleB.bw')
+                library_dict[library]['transcriptome_alleleA'] = f'results/libraries/{library}/transcriptome_se_alleleA.bw'
+                library_dict[library]['transcriptome_alleleB'] = f'results/libraries/{library}/transcriptome_se_alleleB.bw'
+
+            target_list.append(f'results/libraries/{library}/transcriptome_se.loom')
+            target_list.append( f'results/libraries/{library}/transcriptome_se.csv' )
+            target_list.append(f'results/libraries/{library}/meta.yaml')
+            library_dict[library]['transcriptome'] = f'results/libraries/{library}/RNA_SE_Aligned.sortedByCoord.out.bw'
+            target_list.append( f'results/libraries/{library}/{library}.RNA_SE_Aligned.sortedByCoord.out.plotProfile.png' )
+
+    return target_list, library_dict
+
+# Check if the right library type was provided
+for library, library_info in config['libraries'].items():
+    assert 'sciT' in library_info.get('type',''), f'Library type for library {library} must be "sciT"'
+    assert 'sciT' in library_info.get('demultiplexer',''), f'Library demultiplexer for library {library} must be "sciT"'
+    print(f'Library: {library}, demultiplexer: {library_info["demultiplexer"]}', file=sys.stderr)
+# Get all target files
+targets, library_dict = get_targets()
+
+def all_bigwigs():
+    return [target for target in targets if target.endswith('.bw')]
+
+def all_tx_looms():
+    return [target for target in targets if target.endswith('transcriptome_se.loom')]
+
+# Mapping
+include: "rules/mapping/star.smk"
+# Read contamination QC
+include: "rules/qc/fastq_screen.smk"
+# Tagging
+include: "rules/bam_processing/sciT_tagging.smk"
+# Counting
+include: "rules/bam_processing/counting.smk"
+include: "rules/bam_processing/bigwig.smk"
+# Samtools
+include: "rules/bam_processing/samtools.smk"
+# Plotting and reporting
+include: "rules/qc/covprofile.smk"
+include: "rules/utils/bcftools.smk"
+
+
+rule all:
+    input:
+        targets,
+        'results/report/qc_report.html'
+
+
+def preprend_flag(inputs, flag):
+    if inputs is None or len(inputs)==0:
+        return ''
+    return ' '.join([f'{flag} {i}' for i in inputs])
+
+if 'hybrid' in config['reference']:
+    assert 'alleleA' in config['reference']['hybrid'], 'Please supply the name of the sample used for allele A in the config file at /reference/hybrid/allele_a'
+    assert 'alleleB' in config['reference']['hybrid'], 'Please supply the name of the sample used for allele B in the config file at /reference/hybrid/allele_b'
+    if not os.path.exists(config['reference']['hybrid']['multisample_vcf_file']):
+        raise ValueError('The multisample VCF file does not exist. Please add a valid path (of an indexed vcf.gz file) in the config.yaml at /reference/hybrid/multisample_vcf_file')
+
+    rule sciT_prepare_hybrid_vcf_for_STAR:
+        input:
+            vcf_file = config['reference']['hybrid']['multisample_vcf_file']
+        output:
+            vcf_file = "references/hybrid/snps.vcf" # This is the file that will be used for STAR, it cannot be gzipped
+        params:
+            alleleA = config['reference']['hybrid']['alleleA'],
+            alleleB = config['reference']['hybrid']['alleleB'],
+            version = subprocess.check_output("sciT-prepare-hybrid-vcf-for-STAR --version", shell=True)
+        log:
+            stdout = "log/sciT_prepare_hybrid_vcf_for_STAR.stdout",
+            stderr = "log/sciT_prepare_hybrid_vcf_for_STAR.stderr"
+        resources:
+            mem_mb=lambda wildcards, attempt: 2048 * attempt, # Was benchmarked at 61 megabytes
+            runtime=lambda wildcards, attempt: f"{2121*attempt}s" # Was benchmarked at 1413 seconds
+        shell:
+            "sciT-prepare-hybrid-vcf-for-STAR "
+            "--vcf_in_path {input.vcf_file} "
+            "--vcf_out_path {output.vcf_file} "
+            "--sample_a {params.alleleA} "
+            "--sample_b {params.alleleB} "
+            "> {log.stdout} 2> {log.stderr}"
+
+rule split_transcriptome_by_allele:
+    input:
+        tx_bam = "results/libraries/{library}/transcriptome_se.bam"
+    output:
+        alleleA = "results/libraries/{library}/transcriptome_se_alleleA.bam",
+        alleleB = "results/libraries/{library}/transcriptome_se_alleleB.bam",
+        alleleA_index = "results/libraries/{library}/transcriptome_se_alleleA.bam.bai",
+        alleleB_index = "results/libraries/{library}/transcriptome_se_alleleB.bam.bai",
+        allele_ambiguous = "results/libraries/{library}/transcriptome_se_allele_ambiguous.bam"
+    log:
+        stdout="log/split_transcriptome_by_allele/{library}.stdout",
+        stderr="log/split_transcriptome_by_allele/{library}.stderr"
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, attempt: 3500 * attempt, 
+        runtime=lambda wildcards, attempt: f"{3600*attempt}s" 
+    shell:
+        "sciT-split-bam-by-allele "
+        "--bam_in {input.tx_bam} "
+        "--hp1_out {output.alleleA} "
+        "--hp2_out {output.alleleB} "
+        "--ambiguous_out {output.allele_ambiguous}"
+        "> {log.stdout} 2> {log.stderr}"
+
+rule sample_qc:
+    input:
+        tx = all_tx_looms(),
+        config_path = 'config.yaml'
+    output:
+        qc_status ='results/QC/qc_status_per_sample.csv'
+    params:
+        tx_looms = preprend_flag(all_tx_looms(),"--tx"),
+        runtime = "1h",
+        tx_count_threshold = config['QC'].get('transcriptome_count_threshold',0),
+        tx_genes_threshold = config['QC'].get('transcriptome_genes_threshold',0)
+    resources:
+        runtime=lambda wildcards, attempt: f"{300*attempt}s", # Was benchmarked at 18 seconds
+        mem_mb=lambda wildcards, attempt: 2847 * attempt # Was benchmarked at 2189 megabytes
+    log:
+        stdout="log/qc.stdout",
+        stderr="log/qc.stderr"
+
+    shell:
+        "sciT-qc "
+        "{params.tx_looms} "
+        "--tx_clustering_output_path results/QC/transcriptome_clustering_mqc.png "
+        "--tx_count_threshold {params.tx_count_threshold} "
+        "--tx_genes_threshold {params.tx_genes_threshold} "
+        "--qc_csv {output.qc_status} "
+        "--config_file {input.config_path} "
+        "> {log.stdout} 2> {log.stderr}"
+
+
+rule QC_report:
+    input:
+        targets,
+        'config.yaml',
+        'multiqc_config.yml'
+    output:
+        html='results/report/qc_report.html'
+    resources:
+        mem_mb=lambda wildcards, attempt: 1024 * attempt, # Was benchmarked at 165 megabytes
+        runtime=lambda wildcards, attempt: f"{1500*attempt}s" # Was benchmarked at 14 seconds
+    shell:
+        "multiqc results -f -o results/report -x '*RNA_SE__STARpass1*' --filename qc_report.html -d -dd 1 -e general_stats --config multiqc_config.yml"
+
+
+
+def sciT_trimming_flags(wildcards, single_end=False):
+
+
+    # mysequenceADAPTERsomething => -a/A ADAPTER =>mysequence
+    # somethingADAPTERmysequence => -g/G ADAPTER =>mysequence
+    # Transcriptome:
+    # R1 precedes with [TAAGCAGTGGTATCAACGCAGAGTACATGG sometimes]
+    # R1:   ... cDNA ..     ... cDNA ..   . ... cDNA .. .. TTTTTTTT+ VN ATCAGCACTTAGCGTCAG [UMI]
+    # R2:  [NYBot]TGACTTGG [Even] TGACAACTT [Odd] TTGACTTG [UMI]        CTGACGCTAAGTGCTGAT NV T+  ...cDNA... AGATCGTCGGACTGTAGAACTCTGAACGTGTAGATCTCGGTGGTCGCCGTATCATT
+    flags = [ # for sciT cDNA
+        "-g ^TAAGCAGTGGTATCAACGCAGAGTACATGGG", # this sequence floods the front of R1 in cDNA reads
+        "-g ^TTCTACAGTCCGACGATCT", # Sequence at the start of R1 found before the insert, sometimes it is found after the insert
+        #"-g file:dpm.fa",
+        "-n 7" # Remove up to 5 adapter sequences, we need this because we can hit 2+ dpms, a sequence at the start, poly-A and RPM
+    ]
+
+    if wildcards.modality =='RNA':
+        flags += [
+            # R1: this is the most important as R2 is pretty much not usable
+            '-u 1',
+            '-a "AAAAAAAAAAAAAAAAAAA;noindels"',
+            '-a ATCAGCACTTAGCGTCAG', # DPM1/2 for cdna, should not be reached as there is a poly-A in front of it
+            # R2: -A never happens due too length of read
+            '-G "TTTTTTTTTTTTTTTTTT;noindels;rightmost"', # poly-t
+            '-A AGATCGTCGGACTGTAGAACTCTGAACGTGTAGATCTCGGTGGTCGCCGTATCATT'
+        ]
+    else:
+        raise Exception(f'Unknown modality {wildcards.modality}')
+        
+    if single_end:
+        return ' '.join([flag for flag in flags if not flag.startswith('-A') and not flag.startswith('-G')])
+    return ' '.join(flags)
+
+
+
+for library, library_info in config['libraries'].items():
+    # SciT
+    print(f'Library: {library}, demultiplexer: {library_info["demultiplexer"]}', file=sys.stderr)
+    if library_info["demultiplexer"]=='sciT':
+
+        assert len(library_info['transcriptome-paired-end-fastq-files'])==2, f'Please use R1 and R2 transcriptome fastq files for the input of sciT, for library {library}'
+        assert len(library_info['transcriptome-paired-end-fastq-files']['R1'])>0, f'Please use at least one R1 fastq file for the input of sciT, for library {library}'
+        assert 'sciT' in config, 'Please add sciT section to the config file'
+        assert 'cell_min_transcriptome_count' in config['sciT'], 'Please add cell_min_transcriptome_count to the sciT section of the config file'
+        
+        if len(library_info['transcriptome-paired-end-fastq-files']['R1'])>1:
+            assert len(library_info['transcriptome-paired-end-fastq-files']['R1']) == len(library_info['transcriptome-paired-end-fastq-files']['R2']), f'Please provide the same number of R1 and R2 files for Transcriptome, for library {library}'
+            print(f'{library} RNA fraction has more than one input fastq file, these will be concatenated', file=sys.stderr)
+            # Concatenation required
+            for mate in ['R1','R2']:
+                rule:
+                    name: f'sciT-RNA-concat-{library}-{mate}'
+                    input:
+                        r = library_info['transcriptome-paired-end-fastq-files'][mate]
+                    output:
+                        r=temp(f"results/libraries/{library}/raw.RNA.{mate}.fastq.gz"),
+                    params:
+                        runtime="1h"
+                    log:
+                        stderr=f"log/concat/{library}_{mate}.stderr"
+                    resources:
+                        mem_mb=lambda wildcards, attempt: attempt * 100
+                    shell:
+                        "cat {input.r} > {output.r} 2> {log.stderr}" if library_info['transcriptome-paired-end-fastq-files'][mate][0].endswith('.gz') else "cat {input.r} | gzip > {output.r} 2> {log.stderr}"
+
+            r1_tx = f"results/libraries/{library}/raw.RNA.R1.fastq.gz"
+            r2_tx = f"results/libraries/{library}/raw.RNA.R2.fastq.gz"
+
+        else:
+            r1_tx = library_info['transcriptome-paired-end-fastq-files']['R1'][0]
+            r2_tx = library_info['transcriptome-paired-end-fastq-files']['R2'][0]
+            
+        rule:
+            name: f'sciT-transcriptome-paired-end-trimming-{library}'
+            input:
+                r1 = r1_tx,
+                r2 = r2_tx
+            log:
+                stdout=f"log/trim/{library}.RNA.stdout",
+                stderr=f"log/trim/{library}.RNA.stderr",
+            output:
+                r1=temp(f"results/libraries/{library}/raw.RNA.trimmed.R1.fastq.gz"), # Pass
+                r2=temp(f"results/libraries/{library}/raw.RNA.trimmed.R2.fastq.gz")
+            params: 
+                runtime="30h",
+                minumum_read_len = 12,
+                modality = 'RNA'
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 2000
+            conda:
+                "rules/fastq_processing/cutadapt.yaml"
+            shell: 'cutadapt -o {output.r1} -p {output.r2} -j 4 -m {params.minumum_read_len} {input.r1} {input.r2} > {log.stdout} 2> {log.stderr}'
+                    
+        rule:
+            name: f'sciT-paired-end-demultiplexing-{library}'
+            input:
+                r1 = f"results/libraries/{library}/raw."+"{modality}.trimmed.R1.fastq.gz",
+                r2 = f"results/libraries/{library}/raw."+"{modality}.trimmed.R2.fastq.gz",
+                config = "barcode_id_config.txt"
+            output:
+                demux_r1=temp(f"results/libraries/{library}/trimmed."+"{modality}.R1.fastq.gz"),# Pass
+                demux_r2=temp(f"results/libraries/{library}/trimmed."+"{modality}.R2.fastq.gz")
+
+            log:
+                stdout=f"log/demux/{library}."+"{modality}.stdout",
+                stderr=f"log/demux/{library}."+"{modality}.stderr"
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 4000,
+                runtime=lambda wildcards, attempt: f"{30*60*60*attempt}s"
+
+            shell:
+                "java -jar BarcodeIdentification_v1.2.0.jar "
+                "--config {input.config} "
+                "--input1 {input.r1} "
+                "--input2 {input.r2} "
+                "--output1 {output.demux_r1} "
+                "--output2 {output.demux_r2} "
+                " > {log.stdout} 2> {log.stderr}"
+        
+        rule:
+            name: f"sciT-to-scmo-read-recoder-{library}"
+            input:
+                r1=f"results/libraries/{library}/trimmed."+"{modality}.R1.fastq.gz",
+                r2=f"results/libraries/{library}/trimmed."+"{modality}.R2.fastq.gz"
+            output:
+                r1=temp(f"results/libraries/{library}/sciT.demux."+"{modality}.R1.fastq.gz"),
+                r2=temp(f"results/libraries/{library}/sciT.demux."+"{modality}.R2.fastq.gz"),
+                stats=f"results/libraries/{library}/sciT.demux."+"{modality}.yaml"
+            params:
+                library = library,
+                multiplexer = "sciT",
+                flags=('--write-ci' if 'transcriptome-paired-end-fastq-files' in library_info else ''),
+                seq_before_umi = 'GTTTGACTTG',
+                seq_after_umi = lambda wildcards: 'CTGACGCTAAGTGCTGAT' if wildcards.modality == 'RNA' else 'TCGAGTCTTGGGTGTTT',
+                max_flank_edits = 2,
+                version = sciT_to_scmo_read_recoder_version
+            log:
+                stdout=f"log/sciT_to_scmo_read_recode/{library}/sciT.demux."+"{modality}.stdout.txt",
+                stderr=f"log/sciT_to_scmo_read_recode/{library}/sciT.demux."+"{modality}.stderr.txt"
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 4000,
+                runtime=lambda wildcards, attempt: f"{2*60*60*attempt}s"
+            shell:
+                "sciT-to-scmo-read-recoder "
+                "--r1_in {input.r1} "
+                "--r2_in {input.r2} "
+                "--r1_out {output.r1} "
+                "--r2_out {output.r2} "
+                "--dt {wildcards.modality} "
+                "--multiplexer {params.multiplexer} "
+                "--seq_before_umi {params.seq_before_umi} "
+                "--seq_after_umi {params.seq_after_umi} "
+                "--max_flank_edits {params.max_flank_edits} "
+                "--library {params.library} "
+                "--stats {output.stats} "
+                "{params.flags} "
+                " > {log.stdout} 2> {log.stderr}"
+
+        rule:
+            name: f"read_through_trim-{library}-RNA" # Adapted from https://github.com/GuttmanLab/sprite-pipeline/blob/5e11a588df9a70a98d167956af471880669a18f5/Snakefile#L276
+            input:
+                demux_r1=f"results/libraries/{library}/sciT.demux."+"{modality}.R1.fastq.gz"
+            output:
+                r1=f"results/libraries/{library}/"+"{modality}_barcoded.se.fastq.gz" 
+            params:
+                flags = lambda wildcards: sciT_trimming_flags(wildcards, single_end=True),
+                minimum_read_len = 12
+            log:
+                stderr=f"log/read_through_trim/{library}_"+"{modality}.stderr",
+                stdout=f"log/read_through_trim/{library}_"+"{modality}.stdout"
+            conda:
+                "rules/fastq_processing/cutadapt.yaml"
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 4000,
+                runtime=lambda wildcards, attempt: f"{2*60*60*attempt}s"
+            threads: 4
+            wildcard_constraints:
+                modality="RNA"
+            shell:
+                "cutadapt "
+                "{params.flags} "
+                "-m {params.minimum_read_len} "
+                "-o {output.r1} "
+                "-j {threads} "
+                "{input.demux_r1} "
+                "> {log.stdout} 2> {log.stderr}"
+
+    else:
+        raise Exception(f'Unknown demultiplexer {library_info["demultiplexer"]} for library {library}')
+
+ruleorder: split_transcriptome_by_allele>bam_index
+

@@ -1,0 +1,49 @@
+reference:
+  # Human Hg38:
+  # fasta: reference_repositories/HG38.p14/Homo_sapiens.GRCh38.dna_sm.primary_assembly.fa
+  # annotation_gtf: reference_repositories/HG38.p14/annotations.gtf
+  # For mouse mm10 use:
+  fasta: reference_repositories/mm10_pool_lab/Mus_musculus.GRCm38.dna.primary_assembly.with_ERCC.fa
+  annotation_gtf: reference_repositories/mm10_pool_lab/annotations.gtf
+  # hybrid: # Comment or remove this section to not perform allele specific analysis
+  #   multisample_vcf_file: reference_repositories/mm39/mgp_REL2021_snps.vcf.gz
+  #   alleleA: 129S1_SvImJ # Corresponds to a sample name in the VCF file above
+  #   alleleB: CAST_EiJ
+
+QC: # The quality control thresholds used for the quality control report
+  transcriptome_count_threshold: 0
+  transcriptome_genes_threshold: 1000
+  report_top_samples: 100 # Number of best cells/samples to include in the report, based on the number of unique DamID reads
+  report_bottom_samples: 100 # Number of worst cells to include in the report, based on the number of unique DamID reads
+
+sciT:
+  cell_min_transcriptome_count: 25 # Minimum number of transcriptome molecules for a cell to be counted
+
+conditions:
+  attributes: # Attributes used to determine the condition (label) of each sample
+  - number
+  - library
+  colors: # Predetermined colors for attribute values:
+    number:
+      1K: 0000ff
+      10K: abc8a4
+    library:
+      i31: ffcc00
+# Add library data here by creating a libraries section, see documentation for more details
+libraries:
+  i31-FV-GSK126-1K:
+    type: sciT
+    demultiplexer: sciT
+    transcriptome-paired-end-fastq-files:
+      R1:
+        - i31-FV-GSK126-Gastruloids-sciT-BV_AACN7YKHV_S24_L001_R1_001.fastq.gz
+        - i31-FV-GSK126-Gastruloids-sciT-BV_AACN7YKHV_S24_L002_R1_001.fastq.gz
+      R2:
+        - i31-FV-GSK126-Gastruloids-sciT-BV_AACN7YKHV_S24_L001_R2_001.fastq.gz
+        - i31-FV-GSK126-Gastruloids-sciT-BV_AACN7YKHV_S24_L002_R2_001.fastq.gz
+    library-meta:
+      number: 1K
+      library: i31
+    cell-meta:
+      primary-index: sciT
+      meta: {}
