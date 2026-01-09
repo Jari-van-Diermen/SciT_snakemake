@@ -35,7 +35,7 @@ rule sciT_cell_filter:
     input:
         transcriptome_bam = "results/libraries/{library}/transcriptome_se.bam"
     params:
-        cell_min_transcriptome_count = config['sciT']['cell_min_transcriptome_count'] else 0
+        cell_min_transcriptome_count = (config.get('sciT', {}).get('cell_min_transcriptome_count', 0))
     output:
         transcriptome_output_bam = "results/libraries/{library}/transcriptome_se.cell_filtered.bam",
         rg_filetx = temp("results/libraries/{library}/transcriptome_se.cell_filtered.rg.txt"),
