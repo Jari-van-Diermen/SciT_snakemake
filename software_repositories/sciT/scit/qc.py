@@ -175,9 +175,8 @@ def run():
     assert args.tx is not None, 'Provide at least one loom file'
     
     sample_qc_status = quality_control(
-                    transcriptome_loom_files=args.tx, 
-                    transcriptome_clustering_output_path=args.tx_clustering_output_path, 
-                    transcriptome_count_threshold = args.tx_count_threshold,
+                    transcriptome_loom_files=args.tx,
+                    transcriptome_clustering_output_path=args.tx_clustering_output_path,
                     transcriptome_count_threshold = args.tx_count_threshold,
                     transcriptome_genes_threshold=args.tx_genes_threshold,
                     config_path=args.config_file
