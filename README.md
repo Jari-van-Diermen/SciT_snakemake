@@ -359,7 +359,29 @@ sciT_seurat <- LoomAsSeurat(Loom_path, matrix_rowname_col = "Gene",
                             gmm_cell_calling = FALSE)$seurat
 ```
 
-The *LoomAsSeurat* function also has extra functionalities:
+Another useful fuctionality of the `LoomAsSeurat` function is the ability to use the Odd-barcodes to annotate the Seurat objects with metadata. For this, you provide a comma-seperated file (a template can be found [here](https://github.com/Suirotras/LoadSciLooms/blob/master/inst/extdata/Odd_barcode_md.csv)) that links the Odd-barcodes with a treatment or condition. Below is an example of how this is used with some small example files:
+
+```R
+loom_file <- system.file("extdata", "i31_GSK126_subsample.loom",
+  package = "LoadSciLooms")
+odd_md_file <- system.file("extdata", "Odd_barcode_md.csv",
+  package = "LoadSciLooms")
+
+lseurat_odd <- LoomAsSeurat(
+  loom_path = loom_file,
+  matrix_rowname_col = "Gene",
+  matrix_colname_col = "CellID",
+  resolve_duplicates = FALSE,
+  Add_Odd_bc_md = TRUE,
+  Odd_barcode_md_file = odd_md_file,
+  full_barcode_col = "BC"
+)
+
+# Resulting Seurat metadata will contain Odd-barcode metadata
+head(lseurat_odd$seurat[[c("Odd_barcode", "condition")]])
+```
+
+The *LoomAsSeurat* function also has some other functionalities:
 
 - Determining which barcodes represent 'real' cells using gaussian mixed modeling (gmm).
   The `gmm_call_calling` parameter activates this behaviour.
