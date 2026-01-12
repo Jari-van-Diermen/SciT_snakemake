@@ -214,9 +214,6 @@ libraries:
     library-meta:
       number: 1K
       library: i31
-    cell-meta:
-      primary-index: sciT
-      meta: {}
 ```
 
 `config.yaml` consists of the following fields:
@@ -238,16 +235,35 @@ libraries:
 
 - **conditions**
   - **attributes:** These attributes, in conjunction with the values in the *libraries/library-meta* fields, are used to select colors that will be used in
-                    the quality report. For example, a **seaborn clustermap** that is generated will use these colors.
+                    the quality report.
+    - For example, a **seaborn clustermap** that is generated will annotate the identified cells based on the metadata in its *library-meta* field.
+      In the case of the *config.yaml* above, the clustermap will have two annotation colorbars, one for *library* and one for *number* (i.e. number of
+      cells used to generate the library).  
+      - **Library colorbar**: cells from library i31 are *Tangerine yellow*
+        (i.e. `#ffcc00` <span style="display:inline-block;width:12px;height:12px;background-color:#ffcc00;border:1px solid #000;"></span>).
+      - **number colorbar**: cells from a library prepared with 1K cells are *Blue*
+        (i.e. `#0000ff` <span style="display:inline-block;width:12px;height:12px;background-color:#0000ff;border:1px solid #000;"></span>),
+        while cells from a library prepared with 10K cells are *Green*
+        (i.e. `#abc8a4` <span style="display:inline-block;width:12px;height:12px;background-color:#abc8a4;border:1px solid #000;"></span>).
+
+        Resulting in a plot seen below, as one library (i31) with 1K cells was processed:
+
+        <img src="./figures/transcriptome_clustering_mqc.png" alt="example_clustermap" width="500">
+
 
 - **libraries:** Here you put the information about individual libraries that will be processed.
 
-  - **i31-sample1-1K:** Should be changed to the library identifier of your choosing.
+  - **i31-sample1-1K:** Name of your library identifier.
     - **type:** NEEDS to be **sciT** for every library entry.
     - **demultiplexer:** NEEDS to be **sciT** for every library entry.
     - **transcriptome-paired-end-fastq-files:** Indicate the paired end fastq-files that represent this library and should be processed.
-    - **library-meta:** This indicates the library-wide metadata that defines this library. This metadata will be added to the generated
-                        loom files that the sciT workflow will output.
+    - **library-meta:** This indicates the library-wide metadata that defines this library. Reads from these libraries will be annotated with this meta-data.
+
+      - *Bam files* for this library will have read groups annotated with this metadata:
+
+        `@RG	ID:... ... DS:BC:...;number:1K;library:i31`
+
+      - *Loom files* for this library will have this *library-meta* data in its *Cell metadata* field.
 
 ### Modify fastq_screen.conf
 
@@ -277,6 +293,83 @@ snakemake --executor slurm --cores 60 --resources mem_mb=100000 -k -p --rerun-in
 > [!NOTE]
 > Use the `screen` utility to run the sciT workflow. This makes sure the sciT workflow can keep running when you to disconnect from the HPC.
 
+
+## sciT-snakemake expected output
+
+After the *sciT_snakemake* workflow, the output will be in a new subdirectory named `results`. This directory contains the following:
+
+- **libraries:** per-library output files. Some notable output files are:
+  - *`RNA_barcoded.se.fastq.gz`*: fastq file after barcode identification and read trimming.
+  - *`RNA_SE_Aligned.sortedByCoord.out.bam`*: Bam created by mapping `RNA_barcoded.se.fastq.gz` with STAR.
+  - *`transcriptome_se.bam`*: Bam file created by using `RNA_SE_Aligned.sortedByCoord.out.bam` to assign genes to reads.
+                              Furthermore, reads are deduplicated here.
+  - *`transcriptome_se.cell_filtered.bam"`*: Bam file after cell-filtering using the **sciT/cell_min_transcriptome_count**
+                                            field in the *config.yaml*. Simply put, all barcodes with fewer UMI-counts than the
+                                            value indicated in the **sciT/cell_min_transcriptome_count** field are excluded here.
+  - *`transcriptome_se.loom`*: Loom file created by converting `transcriptome_se.cell_filtered.bam` to loom format.
+- **QC:** quality-control data:
+  - *`qc_status_per_sample.csv`*: comma-separated file indicating whether a barcode passes the QC threshold (e.g. the minimum
+                                  UMI-counts indicated in the **sciT/cell_min_transcriptome_count** in the *config.yaml*).
+  - *`transcriptome_clustering_mqc.png`*: Clustermap of the processed libraries.
+- **report:**
+  - *`qc_report.html`*: The MultiQC report.
+
+## Using sciT-snakemake output
+
+For further analyses of the processed libraries by the *sciT-snakemake* workflow, the `transcriptome_se.loom` files are the most convenient to use.
+
+Here, I provide a convenient way of loading sciT-snakemake-generated loom files into R.
+
+### Loading sciT-snakemake data in R
+
+I provide a companion R package for this sciT-snakemake workflow. This package is named *LoadSciLooms*, and can be found on
+github [here](https://github.com/Suirotras/LoadSciLooms). The package has convenient functions to load loom files as Seurat objects.
+
+To use *LoadSciLooms*, simply install the package using R devtools.
+
+```R
+library(devtools)
+devtools::install_github("Suirotras/LoadSciLooms", ref = "master")
+```
+
+After installing *LoadSciLooms*, the `LoomAsSeurat` function can be used to load a loom file as a seuratobject.
+
+the *sciT-snakemake* workflow creates loom files with different metadata variables:
+
+- **name:** metadata variable referring to gene symbols (e.g. Il12rb1)
+- **Gene:** metadata variable referring to ENSEMBL gene IDs (e.g. ENSMUSG00000000791)
+
+Thus, we can create a seuratobject using the gene symbols:
+
+```R
+# Load as seuratobject
+Loom_path <- "path/to/libraries/i31-sample1-1K/transcriptome_se.loom"
+sciT_seurat <- LoomAsSeurat(Loom_path, matrix_rowname_col = "name",
+                            resolve_duplicates = TRUE,
+                            gmm_cell_calling = FALSE)$seurat
+```
+
+or by using the ENSEMBL gene IDs:
+
+```R
+# Load as seuratobject
+Loom_path <- "path/to/libraries/i31-sample1-1K/transcriptome_se.loom"
+sciT_seurat <- LoomAsSeurat(Loom_path, matrix_rowname_col = "Gene",
+                            resolve_duplicates = TRUE,
+                            gmm_cell_calling = FALSE)$seurat
+```
+
+The *LoomAsSeurat* function also has extra functionalities:
+
+- Determining which barcodes represent 'real' cells using gaussian mixed modeling (gmm).
+  The `gmm_call_calling` parameter activates this behaviour.
+- Automatically resolves duplicate feature names, which is neccessary when you create the
+  Seurat object with gene symbols. This is controlled by the `resolve_duplicates` parameter.
+
+Furthermore, multiple loom files can be opened as a single merged Seurat object using the
+`MultiLoomAsSeurat` function:
+
+For further information, check out the documentation of the *LoadSciLooms*.
 
 ## Issues
 
