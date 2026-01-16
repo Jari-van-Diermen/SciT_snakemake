@@ -193,7 +193,7 @@ rule split_transcriptome_by_allele:
         stderr="log/split_transcriptome_by_allele/{library}.stderr"
     threads: 1
     resources:
-        mem_mb=lambda wildcards, attempt: 3500 * attempt, 
+        mem_mb=lambda wildcards, attempt: 6144 * attempt, 
         runtime=lambda wildcards, attempt: f"{3600*attempt}s" 
     shell:
         "sciT-split-bam-by-allele "
@@ -215,8 +215,8 @@ rule sample_qc:
         tx_count_threshold = config['QC'].get('transcriptome_count_threshold',0),
         tx_genes_threshold = config['QC'].get('transcriptome_genes_threshold',0)
     resources:
-        runtime=lambda wildcards, attempt: f"{300*attempt}s", # Was benchmarked at 18 seconds
-        mem_mb=lambda wildcards, attempt: 2847 * attempt # Was benchmarked at 2189 megabytes
+        runtime=lambda wildcards, attempt: f"{1000*attempt}s", # Was benchmarked at 18 seconds
+        mem_mb=lambda wildcards, attempt: 7144 * attempt # Was benchmarked at 2189 megabytes
     log:
         stdout="log/qc.stdout",
         stderr="log/qc.stderr"
@@ -240,7 +240,7 @@ rule QC_report:
     output:
         html='results/report/qc_report.html'
     resources:
-        mem_mb=lambda wildcards, attempt: 1024 * attempt, # Was benchmarked at 165 megabytes
+        mem_mb=lambda wildcards, attempt: 2048 * attempt, # Was benchmarked at 165 megabytes
         runtime=lambda wildcards, attempt: f"{1500*attempt}s" # Was benchmarked at 14 seconds
     shell:
         "multiqc results -f -o results/report -x '*RNA_SE__STARpass1*' --filename qc_report.html -d -dd 1 -e general_stats --config multiqc_config.yml"
@@ -308,7 +308,7 @@ for library, library_info in config['libraries'].items():
                     log:
                         stderr=f"log/concat/{library}_{mate}.stderr"
                     resources:
-                        mem_mb=lambda wildcards, attempt: attempt * 100
+                        mem_mb=lambda wildcards, attempt: attempt * 200
                     shell:
                         "cat {input.r} > {output.r} 2> {log.stderr}" if library_info['transcriptome-paired-end-fastq-files'][mate][0].endswith('.gz') else "cat {input.r} | gzip > {output.r} 2> {log.stderr}"
 
@@ -335,7 +335,7 @@ for library, library_info in config['libraries'].items():
                 minumum_read_len = 12,
                 modality = 'RNA'
             resources:
-                mem_mb=lambda wildcards, attempt: attempt * 2000
+                mem_mb=lambda wildcards, attempt: attempt * 3000
             conda:
                 "rules/fastq_processing/cutadapt.yaml"
             shell: 'cutadapt -o {output.r1} -p {output.r2} -j 4 -m {params.minumum_read_len} {input.r1} {input.r2} > {log.stdout} 2> {log.stderr}'

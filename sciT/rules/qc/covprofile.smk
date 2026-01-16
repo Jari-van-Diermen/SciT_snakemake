@@ -12,8 +12,8 @@ rule computeMatrix:
         stdout="log/compute_matrix/{library}.{name}.stdout",
         stderr="log/compute_matrix/{library}.{name}.stderr"
     resources:
-        mem_mb=lambda wildcards, attempt: 6555 * attempt, # Was benchmarked at 5041 megabytes
-        runtime=lambda wildcards, attempt: f"{1030*attempt}s" # Was benchmarked at 685 seconds
+        mem_mb=lambda wildcards, attempt: 10000 * attempt, # Was benchmarked at 5041 megabytes
+        runtime=lambda wildcards, attempt: f"{2030*attempt}s" # Was benchmarked at 685 seconds
     threads: 12
     shell:
         #"computeMatrix reference-point -S {input.bw} -R /references/ensembl/97/homo_sapiens/genes.bed --referencePoint TSS -a 3000 -b 3000 -out {output.density} -p {threads}"
@@ -36,8 +36,8 @@ rule plotProfile:
         stdout="log/plotProfile/{library}.{name}.stdout",
         stderr="log/plotProfile/{library}.{name}.stderr"
     resources:
-        mem_mb=lambda wildcards, attempt: 6017 * attempt, # Was benchmarked at 3089 megabytes
-        runtime=lambda wildcards, attempt: f"{300*attempt}s" # Was benchmarked at 44 seconds
+        mem_mb=lambda wildcards, attempt: 8000 * attempt, # Was benchmarked at 3089 megabytes
+        runtime=lambda wildcards, attempt: f"{600*attempt}s" # Was benchmarked at 44 seconds
     shell:
         "plotProfile -m {input.density} "
         "-o {output.profile_plot} "

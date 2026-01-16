@@ -8,7 +8,7 @@ rule samtools_coverage:
 
     resources:
         mem_mb=lambda wildcards, attempt: 1024 * attempt, # Was benchmarked at 90 megabytes
-        runtime=lambda wildcards, attempt: f"{300*attempt}s" # Was benchmarked at 187 seconds
+        runtime=lambda wildcards, attempt: f"{400*attempt}s" # Was benchmarked at 187 seconds
     shell:
         """samtools coverage {input.bam} | grep -v 'JH\\|GL\\|MU\\|KI' | awk 'NR<3{{print $0;next}}{{print $0| "sort --version-sort"}}' > {output.report} """
 

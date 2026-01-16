@@ -12,8 +12,8 @@ rule fastq_screen:
         "fastq_screen.yaml"
     threads: 8
     resources:
-        mem_mb=lambda wildcards, attempt: 4096 * attempt, # Was benchmarked at 21 megabytes, which is surely wrong
-        runtime=lambda wildcards, attempt: f"{1085*attempt}s" # Was benchmarked at 722 seconds
+        mem_mb=lambda wildcards, attempt: 8192 * attempt, # Was benchmarked at 21 megabytes, which is surely wrong
+        runtime=lambda wildcards, attempt: f"{2000*attempt}s" # Was benchmarked at 722 seconds
     shell:
         "fastq_screen --aligner bowtie2 "
         "--threads {threads} "

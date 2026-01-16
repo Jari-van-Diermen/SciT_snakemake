@@ -69,7 +69,7 @@ if 'hybrid' in config['reference']:
             gene_tag='XF',
             version = subprocess.check_output("transcriptomebam-to-loom --version", shell=True)
         resources:
-            mem_mb=lambda wildcards, attempt: 4096 * attempt,
+            mem_mb=lambda wildcards, attempt: 15000 * attempt,
             runtime=lambda wildcards, attempt: f"{7200*attempt}s"  
         shell:
             "transcriptomebam-to-loom "
@@ -96,8 +96,8 @@ else:
             gene_tag='XF',
             version = subprocess.check_output("transcriptomebam-to-loom --version", shell=True)
         resources:
-            mem_mb=lambda wildcards, attempt: 7881 * attempt,  # Was benchmarked at 6062 megabytes
-            runtime=lambda wildcards, attempt: f"{300*attempt}s"  # Was benchmarked at 194 seconds
+            mem_mb=lambda wildcards, attempt: 15000 * attempt,  # Was benchmarked at 6062 megabytes
+            runtime=lambda wildcards, attempt: f"{7200*attempt}s"  # Was benchmarked at 194 seconds
         shell:
             "transcriptomebam-to-loom "
             "{input.bam} "

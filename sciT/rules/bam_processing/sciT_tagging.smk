@@ -18,8 +18,8 @@ rule sciT_tagging_se:
         statistics = "results/libraries/{library}/se_tagging.yaml"
         
     resources:
-        mem_mb=lambda wildcards, attempt: 17409 * attempt ,  # Was benchmarked at 13391 megabytes
-        runtime=lambda wildcards, attempt: f"{1512*attempt}s" # Was benchmarked at 1007 seconds
+        mem_mb=lambda wildcards, attempt: 30000 * attempt ,  # Was benchmarked at 13391 megabytes
+        runtime=lambda wildcards, attempt: f"{3000*attempt}s" # Was benchmarked at 1007 seconds
     params:
         gene_tag='XF', # use GN for using the STAR assigned counts, these are lower as they are stranded and stricter.
         sciT_tagging_version=sciT_tagging_version

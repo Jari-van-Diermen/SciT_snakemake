@@ -11,8 +11,8 @@ rule index_STAR:
     threads: 128
 
     resources:
-        mem_mb=lambda wildcards, attempt: 35902 * attempt ,  # Was benchmarked at 27616 megabytes
-        runtime=lambda wildcards, attempt: f"{1056*attempt}s" # Was benchmarked at 703 seconds
+        mem_mb=lambda wildcards, attempt: 71804 * attempt ,  # Was benchmarked at 27616 megabytes
+        runtime=lambda wildcards, attempt: f"{3000*attempt}s" # Was benchmarked at 703 seconds
     shell:
         "STAR --runMode genomeGenerate "
         "--runThreadN {threads} "
@@ -129,8 +129,8 @@ if 'hybrid' not in config['reference']:
         conda:
             "star.yaml"
         resources:
-            mem_mb=lambda wildcards, attempt: 41221 * attempt ,  # Was benchmarked at 31708 megabytes
-            runtime=lambda wildcards, attempt: f"{803*attempt}s" # Was benchmarked at 534 seconds
+            mem_mb=lambda wildcards, attempt: 80000 * attempt ,  # Was benchmarked at 31708 megabytes
+            runtime=lambda wildcards, attempt: f"{3000*attempt}s" # Was benchmarked at 534 seconds
         shell:
             "STAR "
             "--runThreadN {threads} "
@@ -172,8 +172,8 @@ else:
         conda:
             "star.yaml"
         resources:
-            mem_mb=lambda wildcards, attempt: 43958 * attempt ,  # Was benchmarked at 33813 megabytes
-            runtime=lambda wildcards, attempt: f"{989*attempt}s" # Was benchmarked at 658 seconds
+            mem_mb=lambda wildcards, attempt: 80000 * attempt ,  # Was benchmarked at 33813 megabytes
+            runtime=lambda wildcards, attempt: f"{3000*attempt}s" # Was benchmarked at 658 seconds
         shell:
             "STAR "
             "--runThreadN {threads} "
