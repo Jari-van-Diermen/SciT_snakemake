@@ -126,9 +126,10 @@ Then install the packages into the conda environment using **pip**.
 pip install ./software_repositories/* --upgrade
 ```
 
-This installation only needs to be performed once, after which this **sciT_snakemake** environment can be used for different sciT workflows.
+This installation only needs to be performed once, after which this **sciT_snakemake** conda environment can be used for many different sciT workflows.
 
-You can now delete the cloned github repository, as you only used it here to install the sciT workflow packages.
+If your only goal was to install the sciT workflow packages into the conda environment, you can delete the cloned github repository after this step.
+Otherwise, keep the cloned github repository for the steps described in the [**Execution of sciT workflow**](#execution-of-scit-workflow) section.
 
 ## Execution of sciT workflow
 
@@ -355,6 +356,9 @@ After the *sciT_snakemake* workflow, the output will be in a new subdirectory na
                                             field in the *config.yaml*. Simply put, all barcodes with fewer UMI-counts than the
                                             value indicated in the **sciT/cell_min_transcriptome_count** field are excluded here.
   - *`transcriptome_se.loom`*: Loom file created by converting `transcriptome_se.cell_filtered.bam` to loom format.
+  - *`ligation_efficiency.txt`*: Text file with information about the Sci-barcode ligation efficiency to the reads for each library.
+                                 This is calculated right before the generation of the `RNA_barcoded.se.fastq.gz` file
+                                 (i.e. after barcode identification, but before read trimming).
 - **QC:** quality-control data:
   - *`qc_status_per_sample.csv`*: comma-separated file indicating whether a barcode passes the QC threshold (e.g. the minimum
                                   UMI-counts indicated in the **sciT/cell_min_transcriptome_count** in the *config.yaml*).
@@ -371,13 +375,13 @@ Here, I provide a convenient way of loading sciT-snakemake-generated loom files 
 ### Loading sciT-snakemake data in R
 
 I provide a companion R package for this sciT-snakemake workflow. This package is named *LoadSciLooms*, and can be found on
-github [here](https://github.com/Suirotras/LoadSciLooms). The package has convenient functions to load loom files as Seurat objects.
+github [here](https://github.com/Jari-van-Diermen/LoadSciLooms). The package has convenient functions to load loom files as Seurat objects.
 
 To use *LoadSciLooms*, simply install the package using R devtools.
 
 ```R
 library(devtools)
-devtools::install_github("Suirotras/LoadSciLooms", ref = "master")
+devtools::install_github("Jari-van-Diermen/LoadSciLooms", ref = "master")
 ```
 
 After installing *LoadSciLooms*, the `LoomAsSeurat` function can be used to load a loom file as a seuratobject.
@@ -407,7 +411,7 @@ sciT_seurat <- LoomAsSeurat(Loom_path, matrix_rowname_col = "Gene",
                             gmm_cell_calling = FALSE)$seurat
 ```
 
-Another useful fuctionality of the `LoomAsSeurat` function is the ability to use the Odd-barcodes to annotate the Seurat objects with metadata. For this, you provide a comma-seperated file (a template can be found [here](https://github.com/Suirotras/LoadSciLooms/blob/master/inst/extdata/Odd_barcode_md.csv)) that links the Odd-barcodes with a treatment or condition. Below is an example of how this is used with some small example files:
+Another useful fuctionality of the `LoomAsSeurat` function is the ability to use the Odd-barcodes to annotate the Seurat objects with metadata. For this, you provide a comma-seperated file (a template can be found [here](https://github.com/Jari-van-Diermen/LoadSciLooms/blob/master/inst/extdata/Odd_barcode_md.csv)) that links the Odd-barcodes with a treatment or condition. Below is an example of how this is used with some small example files:
 
 ```R
 loom_file <- system.file("extdata", "i31_GSK126_subsample.loom",
