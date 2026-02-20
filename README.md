@@ -359,6 +359,8 @@ After the *sciT_snakemake* workflow, the output will be in a new subdirectory na
   - *`ligation_efficiency.txt`*: Text file with information about the Sci-barcode ligation efficiency to the reads for each library.
                                  This is calculated right before the generation of the `RNA_barcoded.se.fastq.gz` file
                                  (i.e. after barcode identification, but before read trimming).
+    - the sciT method does not have a barcode at position 1. Thus, it is expected that this
+      file will indicate that almost no barcodes were found at position 1.
 - **QC:** quality-control data:
   - *`qc_status_per_sample.csv`*: comma-separated file indicating whether a barcode passes the QC threshold (e.g. the minimum
                                   UMI-counts indicated in the **sciT/cell_min_transcriptome_count** in the *config.yaml*).
