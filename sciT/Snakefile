@@ -258,6 +258,8 @@ rule cat_ligation_efficiency:
         output_file = "results/libraries/ligation_efficiency.txt"
     log:
         stderr=f"log/cat_ligation_efficiency/cat_ligation_efficiency.stderr"
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt * 3000
     shell:
         "tail -n +1 {input} > {output.output_file} 2> {log.stderr}"
 
@@ -389,6 +391,8 @@ for library, library_info in config['libraries'].items():
                 temp(f"results/libraries/{library}/"+"{modality}_ligation_efficiency.txt")
             log:
                 stderr=f"log/get_ligation_efficiency/{library}_"+"{modality}.stderr"
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 3000
             wildcard_constraints:
                 modality="RNA"
             shell:
