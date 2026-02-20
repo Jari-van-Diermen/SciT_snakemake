@@ -256,8 +256,10 @@ rule cat_ligation_efficiency:
         expand(f"results/libraries/{library}/RNA_ligation_efficiency.txt", library=ligation_efficiency_files)
     output:
         output_file = "results/libraries/ligation_efficiency.txt"
+    log:
+        stderr=f"log/cat_ligation_efficiency/cat_ligation_efficiency.stderr"
     shell:
-        "tail -n +1 {input} > {output.output_file}"
+        "tail -n +1 {input} > {output.output_file} 2> {log.stderr}"
 
 def sciT_trimming_flags(wildcards, single_end=False):
 
@@ -384,11 +386,15 @@ for library, library_info in config['libraries'].items():
             input:
                 r1 = f"results/libraries/{library}/trimmed."+"{modality}.R1.fastq.gz"
             output:
-                temp(f"results/libraries/{library}/{modality}_ligation_efficiency.txt")
+                temp(f"results/libraries/{library}/"+"{modality}_ligation_efficiency.txt")
+            log:
+                stderr=f"log/get_ligation_efficiency/{library}_"+"{modality}.stderr"
+            wildcard_constraints:
+                modality="RNA"
             shell:
                 "sciT-ligation_efficiency "
                 "{input.r1} "
-                " > {output}"
+                " > {output} 2> {log.stderr}"
 
         rule:
             name: f"sciT-to-scmo-read-recoder-{library}"
