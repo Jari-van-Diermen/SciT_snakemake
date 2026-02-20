@@ -10,6 +10,7 @@ scit/sciT_tagger.py
 scit/sciT_umi.py
 scit/split_bam_by_allele.py
 scit/transcriptome_bam_to_loom.py
+scit/get_ligation_efficiency.py
 sciTtools.egg-info/PKG-INFO
 sciTtools.egg-info/SOURCES.txt
 sciTtools.egg-info/dependency_links.txt

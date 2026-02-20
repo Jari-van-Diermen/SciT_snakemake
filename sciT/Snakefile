@@ -83,7 +83,8 @@ allele_specific_mode =  'hybrid' in config['reference']
 
 def get_targets():
     library_dict = dict()
-    target_list = ['results/QC/qc_status_per_sample.csv']
+    ligation_efficiency_files = []
+    target_list = ['results/QC/qc_status_per_sample.csv', "results/libraries/ligation_efficiency.txt"]
     # Add transcriptome single end:
     for library, library_info in config['libraries'].items():
         library_dict[library] = {}
@@ -107,7 +108,11 @@ def get_targets():
             library_dict[library]['transcriptome'] = f'results/libraries/{library}/RNA_SE_Aligned.sortedByCoord.out.bw'
             target_list.append( f'results/libraries/{library}/{library}.RNA_SE_Aligned.sortedByCoord.out.plotProfile.png' )
 
-    return target_list, library_dict
+            # Add ligation efficiency file to targets
+            target_list.append(f"results/libraries/{library}/RNA_ligation_efficiency.txt")
+            ligation_efficiency_files.append(f"results/libraries/{library}/RNA_ligation_efficiency.txt")
+
+    return target_list, library_dict, ligation_efficiency_files
 
 # Check if the right library type was provided
 for library, library_info in config['libraries'].items():
@@ -115,7 +120,7 @@ for library, library_info in config['libraries'].items():
     assert 'sciT' in library_info.get('demultiplexer',''), f'Library demultiplexer for library {library} must be "sciT"'
     print(f'Library: {library}, demultiplexer: {library_info["demultiplexer"]}', file=sys.stderr)
 # Get all target files
-targets, library_dict = get_targets()
+targets, library_dict, ligation_efficiency_files = get_targets()
 
 def all_bigwigs():
     return [target for target in targets if target.endswith('.bw')]
@@ -245,7 +250,18 @@ rule QC_report:
     shell:
         "multiqc results -f -o results/report -x '*RNA_SE__STARpass1*' --filename qc_report.html -d -dd 1 -e general_stats --config multiqc_config.yml"
 
-
+#Combine ligation efficiency from all samples into a single file
+rule cat_ligation_efficiency:
+    input:
+        expand(f"results/libraries/{library}/RNA_ligation_efficiency.txt", library=ligation_efficiency_files)
+    output:
+        output_file = "results/libraries/ligation_efficiency.txt"
+    log:
+        stderr=f"log/cat_ligation_efficiency/cat_ligation_efficiency.stderr"
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt * 3000
+    shell:
+        "tail -n +1 {input} > {output.output_file} 2> {log.stderr}"
 
 def sciT_trimming_flags(wildcards, single_end=False):
 
@@ -365,7 +381,25 @@ for library, library_info in config['libraries'].items():
                 "--output1 {output.demux_r1} "
                 "--output2 {output.demux_r2} "
                 " > {log.stdout} 2> {log.stderr}"
-        
+
+        #Get ligation efficiency
+        rule:
+            name: f"get_ligation_efficiency-{library}"
+            input:
+                r1 = f"results/libraries/{library}/trimmed."+"{modality}.R1.fastq.gz"
+            output:
+                temp(f"results/libraries/{library}/"+"{modality}_ligation_efficiency.txt")
+            log:
+                stderr=f"log/get_ligation_efficiency/{library}_"+"{modality}.stderr"
+            resources:
+                mem_mb=lambda wildcards, attempt: attempt * 3000
+            wildcard_constraints:
+                modality="RNA"
+            shell:
+                "sciT-ligation_efficiency "
+                "{input.r1} "
+                " > {output} 2> {log.stderr}"
+
         rule:
             name: f"sciT-to-scmo-read-recoder-{library}"
             input:
